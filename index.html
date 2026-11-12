@@ -396,8 +396,10 @@ function confetti(){
 
 // ---------- embed: tell the parent page how tall we are ----------
 let lastH = 0;
-function postHeight(){ const h = Math.ceil(document.documentElement.scrollHeight); if (Math.abs(h - lastH) > 4) { lastH = h; try { parent.postMessage({ guessRoomHeight:h }, "*"); } catch(e){} } }
-new ResizeObserver(postHeight).observe(document.body);
+// measure the game itself (not the frame), so the box can shrink back when the page gets shorter
+function postHeight(){ const app = $("app"); const h = Math.ceil(app.getBoundingClientRect().height + app.offsetTop + 4); if (Math.abs(h - lastH) > 4) { lastH = h; try { parent.postMessage({ guessRoomHeight:h }, "*"); } catch(e){} } }
+new ResizeObserver(postHeight).observe($("app"));
+window.addEventListener("load", postHeight);
 function scrollParent(){ try { parent.postMessage({ guessRoomScroll:true }, "*"); } catch(e){} }
 
 // ---------- welcome stage: the two hosts change expressions now and then ----------
