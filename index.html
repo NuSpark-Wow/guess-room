@@ -78,6 +78,15 @@ h1,h2,h3,.fred{font-family:Fredoka,Nunito,sans-serif;font-weight:700;letter-spac
 .chips{display:flex;flex-wrap:wrap;gap:9px}
 .chip{border:2px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;padding:10px 15px;font-weight:800;font-size:15px}
 .chip:hover{border-color:rgba(255,201,74,.6)}
+.chip.on{border-color:var(--gold);background:var(--card2)}
+.chip.own{border-style:dashed}
+.subs{margin-top:14px;border-top:1px dashed var(--line);padding-top:14px}
+.subs .lab{font-weight:800;color:var(--gold2);font-size:14.5px;margin-bottom:9px}
+.chip.sub{font-size:14px;padding:8px 13px;background:rgba(255,255,255,.04)}
+.chip.mix{border-color:rgba(255,201,74,.55);color:var(--gold2)}
+.ownrow{display:flex;gap:8px;margin-top:11px;max-width:560px}
+.ownrow input{flex:1;min-width:0;border:2px solid var(--line);background:#1c050c;color:var(--text);border-radius:14px;padding:11px 13px;font:inherit;font-size:15.5px}
+.ownrow input:focus{outline:none;border-color:var(--gold)}
 .chip.surprise{border-style:dashed;border-color:rgba(255,201,74,.55);color:var(--gold2)}
 .nosave{margin:10px 2px 0;color:var(--dim);font-size:13px;text-align:center}
 
@@ -271,6 +280,7 @@ h1,h2,h3,.fred{font-family:Fredoka,Nunito,sans-serif;font-weight:700;letter-spac
       <h2><span class="n">3</span>Pick a topic</h2>
       <p class="sub" id="s3sub">Choose what the game is about.</p>
       <div class="chips" id="chips"><div class="waitnote">👆 Pick who's playing and a game first, and the topics will show up here.</div></div>
+      <div class="subs hide" id="subs"></div>
     </div>
     <p class="nosave">No sign-up. Nothing you type or say is saved.</p>
   </section>
@@ -320,6 +330,39 @@ const AGES = {
     topics:["🔬 Science","🏛️ History","🗺️ Geography","🏀 Sports","🎬 Music & Movies","🎮 Video Games","💡 Inventions","🐾 Animals"] },
   adult:  { label:"The Guess Room", range:"Ages 18+", face:"host", kid:false, host:"Mr. Paul", tag:"Your host",
     topics:["🏛️ History","⚾ Sports","🎵 Music","📺 Movies & TV","🔬 Science","💼 Business & Money","✈️ Food & Travel","📻 Decades & Nostalgia"] }
+};
+// 5 sub-topics for every topic, per age group (plus "Mix it up" and "Your own")
+const SUBS = {
+  junior: {
+    "Animals":["Pets","Farm Animals","Jungle Animals","Bugs & Creepy Crawlies","Birds"],
+    "Dinosaurs":["Meat-Eaters","Plant-Eaters","Flying Reptiles","Sea Reptiles","Dinosaur Fossils"],
+    "Space":["Planets","The Moon","The Sun & Stars","Astronauts","Rockets"],
+    "Food":["Fruits & Veggies","Sweets & Treats","Breakfast","Pizza & Pasta","Foods Around the World"],
+    "Toys & Cartoons":["Classic Toys","Board Games","Building Toys","Cartoon Animals","Superheroes"],
+    "Sports":["Soccer","Basketball","Baseball","Football","The Olympics"],
+    "Ocean":["Sharks","Whales & Dolphins","Fish","Coral Reefs","Beach & Shells"],
+    "Around the World":["Famous Places","Flags","Countries","Big Cities","Continents"]
+  },
+  teen: {
+    "Science":["Human Body","Chemistry","Physics","Weather & Earth","Space Science"],
+    "History":["Ancient Egypt & Rome","Medieval Times","American History","Explorers","The 20th Century"],
+    "Geography":["Countries","Capitals","Landmarks","Mountains & Rivers","Oceans & Islands"],
+    "Sports":["Basketball","Football","Soccer","Baseball","The Olympics"],
+    "Music & Movies":["Pop Music","Hip-Hop","Animated Movies","Superhero Movies","Movie Soundtracks"],
+    "Video Games":["Nintendo","Minecraft & Building Games","Racing Games","Retro Arcade","Sports Games"],
+    "Inventions":["Phones & Computers","The Internet","Transportation","Everyday Inventions","Famous Inventors"],
+    "Animals":["Ocean Animals","Wild Cats","Reptiles","Birds","Weird & Wonderful Animals"]
+  },
+  adult: {
+    "History":["Ancient World","American Revolution","Civil War","World War II","The 1960s"],
+    "Sports":["Baseball","Football","Basketball","Hockey","Golf & Tennis"],
+    "Music":["60s & 70s Rock","Motown & Soul","80s & 90s Pop","Country","Broadway & Movie Songs"],
+    "Movies & TV":["Classic Movies","Sitcoms","Game Shows","Sci-Fi & Fantasy","Oscar Winners"],
+    "Science":["Space Exploration","Human Body","Earth & Weather","Great Inventions","Animals & Nature"],
+    "Business & Money":["Famous Brands","Famous Founders","Ads & Slogans","Stock Market","Retail & Shopping History"],
+    "Food & Travel":["Famous Foods","Restaurants & Chains","World Landmarks","Desserts","National Parks & Road Trips"],
+    "Decades & Nostalgia":["The 1950s","The 1960s","The 1970s","The 1980s","The 1990s"]
+  }
 };
 const EXPR = { talk:1, think:2, wow:3, laugh:4, calm:5 };
 const faceSrc = (face, ex) => `${face}${EXPR[ex] || 5}.jpg`;
@@ -399,15 +442,47 @@ document.querySelectorAll(".door").forEach(d => d.onclick = () => {
 // ---------- step 3: topic ----------
 function paintTopics(){
   const a = ageInfo();
-  $("chips").innerHTML = a.topics.map(t => `<button class="chip" data-t="${esc(t)}">${esc(t)}</button>`).join("") + `<button class="chip surprise" data-t="🎲 Surprise me">🎲 Surprise me</button>`;
+  $("subs").classList.add("hide"); $("subs").innerHTML = "";
+  $("chips").innerHTML = a.topics.map(t => `<button class="chip" data-t="${esc(t)}">${esc(t)}</button>`).join("")
+    + `<button class="chip own" data-t="own">✏️ Type your own topic</button><button class="chip surprise" data-t="surprise">🎲 Surprise me</button>`;
   $("chips").querySelectorAll(".chip").forEach(c => c.onclick = () => {
     blessVoice();
     if (!S.game) { const s2 = $("s2"); s2.scrollIntoView({ behavior:"smooth", block:"center" }); s2.classList.remove("nudge"); void s2.offsetWidth; s2.classList.add("nudge"); toast("Now pick a door: The Mystery or Fact or Fiction 👆"); return; }
-    let t = c.dataset.t;
-    if (/Surprise/.test(t)) t = a.topics[Math.floor(Math.random() * a.topics.length)];
-    S.topic = t; startGame();
+    const t = c.dataset.t;
+    if (t === "surprise") { const r = a.topics[Math.floor(Math.random() * a.topics.length)]; return go(topicName(r), topicName(r), false); }
+    $("chips").querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x === c));
+    paintSubs(t === "own" ? null : t);
   });
 }
+// second row: Mix it up, 5 sub-topics, or your own words (the box starts empty)
+function paintSubs(topic){
+  const box = $("subs"); box.classList.remove("hide");
+  const name = topic ? topicName(topic) : "";
+  const subs = topic ? ((SUBS[S.age] || {})[name] || []) : [];
+  box.innerHTML = topic
+    ? `<div class="lab">Narrow it down, or mix it up:</div>
+       <div class="chips"><button class="chip sub mix" data-s="">🎲 Mix it up (all of ${esc(name)})</button>${subs.map(x => `<button class="chip sub" data-s="${esc(x)}">${esc(x)}</button>`).join("")}</div>
+       <div class="ownrow"><input id="ownIn" maxlength="60" autocomplete="off" aria-label="Your own ${esc(name)} topic"><button class="go" id="ownGo">✏️ Use mine ▶</button></div>`
+    : `<div class="lab">Type any topic you like:</div>
+       <div class="ownrow"><input id="ownIn" maxlength="60" autocomplete="off" aria-label="Your own topic"><button class="go" id="ownGo">Let's play ▶</button></div>`;
+  box.querySelectorAll(".chip.sub").forEach(b => b.onclick = () => {
+    blessVoice();
+    const sub = b.dataset.s;
+    go(sub ? `${name}: ${sub}` : name, sub || name, false);
+  });
+  const useOwn = () => {
+    const v = $("ownIn").value.trim().replace(/\s+/g, " ");
+    if (v.length < 2) { $("ownIn").focus(); toast("Type a topic first ✏️"); return; }
+    blessVoice();
+    go(name ? `${name}: ${v}` : v, v, true);
+  };
+  $("ownGo").onclick = useOwn;
+  $("ownIn").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); useOwn(); } };
+  if (!topic) $("ownIn").focus({ preventScroll:true });
+  box.scrollIntoView({ behavior:"smooth", block:"nearest" });
+}
+// cat = what the AI gets, label = the little gold tag on the board, custom = the player typed it
+function go(cat, label, custom){ S.cat = cat; S.label = label; S.custom = !!custom; startGame(); }
 
 // ---------- host avatar ----------
 let hostFace = "host", curEx = "calm";
@@ -577,7 +652,7 @@ $("newGame").onclick = () => {
   window.scrollTo({ top:0, behavior:"smooth" }); scrollParent();
 };
 function loadingBoard(title, line){
-  $("board").innerHTML = `<div class="bhead"><h2>${esc(title)}</h2><span class="tag">${esc(topicName(S.topic))}</span></div><div class="loading"><span class="dots"><i></i><i></i><i></i></span>${esc(line)}</div>`;
+  $("board").innerHTML = `<div class="bhead"><h2>${esc(title)}</h2><span class="tag">${esc(S.label)}</span></div><div class="loading"><span class="dots"><i></i><i></i><i></i></span>${esc(line)}</div>`;
 }
 
 // =====================================================================
@@ -592,7 +667,7 @@ async function newMystery(first){
   loadingBoard("🔍 The Mystery", "Mr. Paul is thinking of something secret…");
   $("caption").textContent = first ? "Hmm, let me think of a good one…" : "Okay, I've got a new one brewing…";
   try {
-    const r = await post("/api/guess", { part:"mystery", age:S.age, category:topicName(S.topic), avoid:seenAnswers.slice(-15) });
+    const r = await post("/api/guess", { part:"mystery", age:S.age, category:S.cat, custom:S.custom, avoid:seenAnswers.slice(-15) });
     S.m = { ...r, shown:1, asked:[], done:false, guesses:0 };
     seenAnswers.push(r.answer);
     S.busy = false;
@@ -601,7 +676,9 @@ async function newMystery(first){
     $("askIn") && $("askIn").focus({ preventScroll:true });
   } catch(e) {
     S.busy = false; setExpr("calm");
-    $("board").innerHTML = `<div class="bhead"><h2>🔍 The Mystery</h2></div><p>That didn't load. ${esc(e.message || "")}</p><button class="go" id="retry">Try again</button>`;
+    $("board").innerHTML = `<div class="bhead"><h2>🔍 The Mystery</h2></div><p style="font-size:17px;line-height:1.5">${esc(e.message || "That didn't load.")}</p><div class="moves"><button class="go" id="retry">Try again</button><button class="move" id="pickAgain">↩ Pick another topic</button></div>`;
+    $("pickAgain").onclick = () => $("newGame").click();
+    if (/topic/i.test(e.message || "") || S.custom) say(e.message || "", { mood:"think", end:"calm" });
     $("retry").onclick = () => newMystery(first);
   }
 }
@@ -616,7 +693,7 @@ function paintMystery(){
     : `<div class="picbox"><div class="q">?</div></div>`;
   const qa = m.asked.map(q => `<div class="row"><span class="ans ${q.cls}">${esc(q.label)}</span><span class="you">${esc(q.q)}</span></div>`).join("");
   $("board").innerHTML = `
-    <div class="bhead"><h2>🔍 The Mystery</h2><span class="tag">${esc(topicName(S.topic))}</span></div>
+    <div class="bhead"><h2>🔍 The Mystery</h2><span class="tag">${esc(S.label)}</span></div>
     <div class="mgrid">
       <div>
         <ul class="clues">${lis}</ul>
@@ -661,7 +738,7 @@ async function askQuestion(){
   S.busy = true; inp.value = ""; $("askBtn").disabled = true;
   setExpr("think");
   try {
-    const r = await post("/api/guess", { part:"ask", age:S.age, category:topicName(S.topic), answer:m.answer, aliases:m.aliases || [], clues:m.clues.slice(0, m.shown), question:q, history:m.asked.slice(-8).map(x => ({ q:x.q, a:x.label })) });
+    const r = await post("/api/guess", { part:"ask", age:S.age, category:S.cat, answer:m.answer, aliases:m.aliases || [], clues:m.clues.slice(0, m.shown), question:q, history:m.asked.slice(-8).map(x => ({ q:x.q, a:x.label })) });
     S.busy = false;
     if (r.verdict === "correct") { m.asked.push({ q, label:"✓ Yes!", cls:"yes" }); return revealMystery(true, r.say); }
     const map = { yes:["Yes","yes"], no:["No","no"], sort_of:["Sort of","sort"], close:["So close!","sort"], wrong:["Not it","no"], not_yes_no:["Yes or no only","sort"] };
@@ -707,7 +784,7 @@ function paintReveal(){
 const ROUND = 10;
 const seenClaims = [];
 async function fetchClaims(n){
-  const r = await post("/api/guess", { part:"facts", age:S.age, category:topicName(S.topic), count:n, avoid:seenClaims.slice(-30) });
+  const r = await post("/api/guess", { part:"facts", age:S.age, category:S.cat, custom:S.custom, count:n, avoid:seenClaims.slice(-30) });
   const list = (r.claims || []).filter(c => c && c.claim);
   list.forEach(c => seenClaims.push(c.claim));
   return list;
@@ -731,7 +808,9 @@ async function newFofRound(first){
     showClaim();
   } catch(e) {
     setExpr("calm");
-    $("board").innerHTML = `<div class="bhead"><h2>✅ Fact or Fiction</h2></div><p>That didn't load. ${esc(e.message || "")}</p><button class="go" id="retry">Try again</button>`;
+    $("board").innerHTML = `<div class="bhead"><h2>✅ Fact or Fiction</h2></div><p style="font-size:17px;line-height:1.5">${esc(e.message || "That didn't load.")}</p><div class="moves"><button class="go" id="retry">Try again</button><button class="move" id="pickAgain">↩ Pick another topic</button></div>`;
+    $("pickAgain").onclick = () => $("newGame").click();
+    if (/topic/i.test(e.message || "") || S.custom) say(e.message || "", { mood:"think", end:"calm" });
     $("retry").onclick = () => newFofRound(first);
   }
 }
@@ -745,7 +824,7 @@ function paintClaim(){
   const answered = f.picked != null;
   const right = answered && f.picked === !!c.fact;
   $("board").innerHTML = `
-    <div class="bhead"><h2>✅ Fact or Fiction</h2><div class="fofmeta"><span class="tag">${esc(topicName(S.topic))}</span></div></div>
+    <div class="bhead"><h2>✅ Fact or Fiction</h2><div class="fofmeta"><span class="tag">${esc(S.label)}</span></div></div>
     ${claimDots()}
     <div class="claimcard"><span class="num">Claim ${f.i + 1} of ${ROUND}</span><p>“${esc(c.claim)}”</p>${answered ? `<span class="stamp ${c.fact ? "fact" : "fiction"}">${c.fact ? "FACT" : "FICTION"}</span>` : ""}</div>
     <div class="ff">
@@ -810,7 +889,7 @@ async function finishRound(){
   const n = f.answered || 1; const pct = f.right / n;
   const title = pct >= .9 ? "Fact-Finding Champion!" : pct >= .7 ? "Sharp Detective!" : pct >= .5 ? "Nice work!" : "Great try!";
   $("board").innerHTML = `
-    <div class="bhead"><h2>✅ Fact or Fiction</h2><span class="tag">${esc(topicName(S.topic))}</span></div>
+    <div class="bhead"><h2>✅ Fact or Fiction</h2><span class="tag">${esc(S.label)}</span></div>
     ${claimDots()}
     <div class="final"><div class="big">${f.right} / ${f.answered}</div><h3 class="fred" style="font-size:26px;margin:8px 0">${title}</h3><p>Best streak: 🔥 ${f.best}</p>
       <div class="moves" style="justify-content:center"><button class="go" id="againR">✅ Play another round</button><button class="move" id="switchM">🔍 Try The Mystery</button></div>
