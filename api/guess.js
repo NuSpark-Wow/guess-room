@@ -275,12 +275,13 @@ async function facts(body) {
   const category = clip(body.category || "Anything", 40);
   const n = Math.max(1, Math.min(6, parseInt(body.count) || 5));
   const avoid = (Array.isArray(body.avoid) ? body.avoid : []).map(x => clip(x, 160)).slice(-30);
-  const want = n + 2; // draft a couple extra in case research drops some
+  const want = n + 3; // draft a few extra in case research drops some
+  const nFiction = Math.ceil(want / 2), nFact = want - nFiction;
   const draft = await tryTwice(m => callTool(
     `You write claims for "Fact or Fiction" in "The Guess Room", a game for ${A.who}. ${A.style} ${SAFE}
-Mix about half TRUE facts that sound surprising and half FICTION that sounds believable (popular myths, or a real fact with one key detail changed). Each claim must be clearly true or clearly false, checkable on the web, and interesting. No trick wording.`,
-    BRAIN_TOOL, `Topic: ${category}\nWrite ${want} claims.\nDon't repeat these: ${avoid.join(" | ") || "none"}`, 1600,
-    j => Array.isArray(j.claims) && j.claims.length >= 2, m));
+Write a balanced mix: TRUE facts that sound surprising, and FICTION that sounds believable (popular myths people really believe, or a real fact with one key detail changed, like a wrong number, year or person). Each claim must be clearly true or clearly false, about a specific checkable detail (a number, date, name, place, record or first), and interesting. No opinions or rankings ("the best", "most famous", "most discussed"), no vague claims, no trick wording.`,
+    BRAIN_TOOL, `Topic: ${category}\nWrite ${want} claims: exactly ${nFact} FACT and ${nFiction} FICTION, in mixed order.\nDon't repeat these: ${avoid.join(" | ") || "none"}`, 1600,
+    j => Array.isArray(j.claims) && j.claims.length >= 2, m), FAST, MODEL);
   const list = draft.claims.filter(c => c && c.claim).slice(0, want);
 
   const researched = await Promise.all(list.map(c => serper(clip(c.search || c.claim, 120))));
@@ -293,9 +294,13 @@ For each claim decide from the RESEARCH whether it is a fact or fiction. The res
 Explanations and proof must use only facts from the research.`,
     CHECK_TOOL, notes, 3500, j => Array.isArray(j.claims), m));
 
+  // keep the round balanced: alternate facts and fictions where we can
+  const kept = checked.claims.filter(c => c && c.keep && c.claim);
+  const tf = kept.filter(c => c.fact), ff = kept.filter(c => !c.fact), mixed = [];
+  let flip = Math.random() < 0.5;
+  while (mixed.length < n && (tf.length || ff.length)) { const from = (flip && ff.length) || !tf.length ? ff : tf; mixed.push(from.shift()); flip = !flip; }
   const out = [];
-  for (const c of checked.claims) {
-    if (!c || !c.keep || !c.claim || out.length >= n) continue;
+  for (const c of mixed) {
     const rows = Array.isArray(c.proof_rows) ? c.proof_rows.slice(0, 5) : [];
     let proof = { kind: "none" };
     if (c.proof_kind === "bars") {
