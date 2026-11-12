@@ -1,5 +1,5 @@
 // The Guess Room — game content for Mr. Paul's two games
-// Parts (POST JSON with "part"):
+// Parts (POST JSON with "part"). "category" can be a topic, "Topic: sub-topic", or words the player typed (custom: true).
 //   mystery { age, category, avoid }                       -> a secret answer, 5 clues (hard to easy), a picture, a wow fact
 //   ask     { age, answer, aliases, clues, question, history } -> judges a yes/no question or a guess (never gives the answer away)
 //   facts   { age, category, count, avoid }                -> researched Fact-or-Fiction claims with explanation, proof and source
@@ -97,6 +97,34 @@ async function wiki(name) {
 }
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 
+// ---------- topics the player typed in: family-friendly check ----------
+const TOPIC_TOOL = {
+  name: "topic_check",
+  description: "Decide if a player's typed topic is OK for a family guessing game.",
+  input_schema: {
+    type: "object",
+    properties: {
+      ok: { type: "boolean", description: "true if the topic is family-friendly and has enough well-known facts for a game" },
+      topic: { type: "string", description: "If ok: the topic cleaned up (fix spelling, short), e.g. 'The Beatles'" },
+      say: { type: "string", description: "If not ok: one friendly sentence from Mr. Paul suggesting a fun topic instead (no lecture, no repeating the topic)" }
+    },
+    required: ["ok"]
+  }
+};
+const topicCache = new Map();
+async function checkTopic(body) {
+  const age = ageOf(body.age), raw = clip(body.category, 90);
+  const key = age + "|" + raw.toLowerCase();
+  if (topicCache.has(key)) return topicCache.get(key);
+  const out = await tryTwice(m => callTool(
+    `You screen topics typed by players of "The Guess Room", a family guessing game for ${AGE[age].who}. ${SAFE} A topic is OK if it is family-friendly for that age and has plenty of well-known facts (a band, team, hobby, place, era, book series, animal group, etc.). Not OK: anything adult, violent, hateful, about current politics, about a private person, or nonsense.`,
+    TOPIC_TOOL, `Typed topic: "${raw}"`, 300, j => typeof j.ok === "boolean", m), FAST, MODEL);
+  const res = { ok: !!out.ok, topic: clip(out.topic || raw, 90), say: clip(out.say || "Let's pick a different topic! How about animals or space?", 200) };
+  if (topicCache.size > 500) topicCache.clear();
+  topicCache.set(key, res);
+  return res;
+}
+
 // ---------- THE MYSTERY ----------
 const IDEAS_TOOL = {
   name: "mystery_ideas",
@@ -138,12 +166,12 @@ const CLUES_TOOL = {
 };
 async function mystery(body) {
   const age = ageOf(body.age), A = AGE[age];
-  const category = clip(body.category || "Anything", 40);
+  const category = clip(body.category || "Anything", 90);
   const avoid = (Array.isArray(body.avoid) ? body.avoid : []).map(x => clip(x, 60)).slice(-20);
   // 1) brainstorm candidates quickly, then pick one at random (keeps games fresh)
   const ideas = await tryTwice(m => callTool(
     `You pick secret answers for "The Guess Room", a guessing game for ${A.who}. ${SAFE} ${age === "junior" ? "No real people at all for this age group." : "Famous people are fine only if they are historical or very widely known for their work (athletes, musicians, inventors, explorers); no politicians from the last 50 years."} Answers must be specific, famous enough that most ${A.who} have heard of them, and fun to guess. Mix easy and medium.`,
-    IDEAS_TOOL, `Topic: ${category}\nAvoid these (already played): ${avoid.join(", ") || "none"}\nGive 12 varied answers.`, 1200,
+    IDEAS_TOOL, `Topic: ${category}\nEvery answer must fit squarely inside this topic (if it names a sub-topic after a colon, stay inside the sub-topic).\nAvoid these (already played): ${avoid.join(", ") || "none"}\nGive 12 varied answers.`, 1200,
     j => Array.isArray(j.ideas) && j.ideas.length >= 1, m), FAST, MODEL);
   const fresh = ideas.ideas.filter(x => x && x.answer && !avoid.some(a => norm(a) === norm(x.answer)));
   const choice = pick(fresh.length ? fresh : ideas.ideas);
@@ -272,7 +300,7 @@ const CHECK_TOOL = {
 };
 async function facts(body) {
   const age = ageOf(body.age), A = AGE[age];
-  const category = clip(body.category || "Anything", 40);
+  const category = clip(body.category || "Anything", 90);
   const n = Math.max(1, Math.min(6, parseInt(body.count) || 5));
   const avoid = (Array.isArray(body.avoid) ? body.avoid : []).map(x => clip(x, 160)).slice(-30);
   const want = n + 3; // draft a few extra in case research drops some
@@ -280,7 +308,7 @@ async function facts(body) {
   const draft = await tryTwice(m => callTool(
     `You write claims for "Fact or Fiction" in "The Guess Room", a game for ${A.who}. ${A.style} ${SAFE}
 Write a balanced mix: TRUE facts that sound surprising, and FICTION that sounds believable (popular myths people really believe, or a real fact with one key detail changed, like a wrong number, year or person). Each claim must be clearly true or clearly false, about a specific checkable detail (a number, date, name, place, record or first), and interesting. No opinions or rankings ("the best", "most famous", "most discussed"), no vague claims, no trick wording.`,
-    BRAIN_TOOL, `Topic: ${category}\nWrite ${want} claims: exactly ${nFact} FACT and ${nFiction} FICTION, in mixed order.\nDon't repeat these: ${avoid.join(" | ") || "none"}`, 1600,
+    BRAIN_TOOL, `Topic: ${category}\nEvery claim must be about this topic (if it names a sub-topic after a colon, stay inside the sub-topic).\nWrite ${want} claims: exactly ${nFact} FACT and ${nFiction} FICTION, in mixed order.\nDon't repeat these: ${avoid.join(" | ") || "none"}`, 1600,
     j => Array.isArray(j.claims) && j.claims.length >= 2, m), FAST, MODEL);
   const list = draft.claims.filter(c => c && c.claim).slice(0, want);
 
@@ -331,6 +359,11 @@ module.exports = async (req, res) => {
   if (limited(req)) return res.status(429).json({ error: "slow_down", message: "Wow, that's a lot of guessing! Take a short break and come back soon." });
   const body = req.body || {};
   try {
+    if (body.custom && (body.part === "mystery" || body.part === "facts")) {
+      const t = await checkTopic(body);
+      if (!t.ok) return res.status(422).json({ error: "topic_declined", message: t.say });
+      body.category = t.topic;
+    }
     if (body.part === "mystery") return res.json(await mystery(body));
     if (body.part === "ask") return res.json(await ask(body));
     if (body.part === "facts") return res.json(await facts(body));
