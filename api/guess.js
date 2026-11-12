@@ -185,7 +185,7 @@ async function mystery(body) {
   // 3) write the clues from the research
   const card = await tryTwice(m => callTool(
     `You are Mr. Paul, host of "The Guess Room", writing a guessing-game card for ${A.who}. ${A.style} ${SAFE}
-Every clue and the wow fact must be TRUE; use the research notes and don't invent numbers. Clues are written as the mystery thing talking ("I..."). Never use the answer or any word from it in a clue or the intro.`,
+Every clue and the wow fact must be TRUE; use the research notes and don't invent numbers. For the source, use a trustworthy one from the notes (Wikipedia, a museum, zoo, university, encyclopedia, government agency like NASA, or a major publication); never a company that sells products, a shop or an ad page. Clues are written as the mystery thing talking ("I..."). Never use the answer or any word from it in a clue or the intro.`,
     CLUES_TOOL, `SECRET ANSWER: ${choice.answer} (${choice.kind})\nTOPIC: ${category}\n\nRESEARCH NOTES:\n${notes.map((n, i) => `[${i + 1}] ${n.title} (${n.link}): ${n.snippet}`).join("\n") || "(none: use only well-known facts you are sure of)"}`,
     1400, j => Array.isArray(j.clues) && j.clues.length >= 5 && j.wow, m));
 
@@ -319,7 +319,7 @@ Write a balanced mix: TRUE facts that sound surprising, and FICTION that sounds 
   const checked = await tryTwice(m => callTool(
     `You fact-check claims for a family game for ${A.who}. ${A.style}
 For each claim decide from the RESEARCH whether it is a fact or fiction. The research wins over the writer's guess. If the research doesn't clearly settle a claim, set keep=false. ${haveWeb ? "" : "No web research is available: keep only claims you are completely certain about, and name a well-known source type (e.g. 'NASA', 'Encyclopaedia Britannica') with no link."}
-Explanations and proof must use only facts from the research.`,
+Explanations and proof must use only facts from the research. Pick a trustworthy source (encyclopedia, museum, university, government agency, major publication or official organization), never a shop or a company selling products.`,
     CHECK_TOOL, notes, 3500, j => Array.isArray(j.claims), m));
 
   // keep the round balanced: alternate facts and fictions where we can
