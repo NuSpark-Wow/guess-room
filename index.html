@@ -54,7 +54,10 @@ h1,h2,h3,.fred{font-family:Fredoka,Nunito,sans-serif;font-weight:700;letter-spac
 .step h2{margin:0 0 4px;font-size:21px;display:flex;align-items:center;gap:10px}
 .step h2 .n{width:28px;height:28px;border-radius:50%;background:var(--gold);color:#4a0f1e;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
 .step .sub{margin:0 0 14px;color:var(--soft);font-size:14.5px}
-.step.dim{opacity:.5;pointer-events:none}
+.step.dim{opacity:1}
+.waitnote{color:var(--soft);font-size:14.5px;border:2px dashed var(--line);border-radius:14px;padding:14px;text-align:center}
+.step.nudge{animation:nudge .6s ease}
+@keyframes nudge{0%,100%{box-shadow:none}30%,70%{box-shadow:0 0 0 4px rgba(255,201,74,.55)}}
 .ages{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .age{border:2px solid var(--line);background:var(--card);color:var(--text);border-radius:16px;padding:14px 12px;text-align:center;transition:transform .15s,border-color .15s}
 .age:hover{transform:translateY(-2px);border-color:rgba(255,201,74,.6)}
@@ -267,7 +270,7 @@ h1,h2,h3,.fred{font-family:Fredoka,Nunito,sans-serif;font-weight:700;letter-spac
     <div class="step dim" id="s3">
       <h2><span class="n">3</span>Pick a topic</h2>
       <p class="sub" id="s3sub">Choose what the game is about.</p>
-      <div class="chips" id="chips"></div>
+      <div class="chips" id="chips"><div class="waitnote">👆 Pick who's playing and a game first, and the topics will show up here.</div></div>
     </div>
     <p class="nosave">No sign-up. Nothing you type or say is saved.</p>
   </section>
@@ -379,8 +382,14 @@ $("ages").querySelectorAll(".age").forEach(b => b.onclick = () => {
   $("s2").scrollIntoView({ behavior:"smooth", block:"nearest" });
 });
 // ---------- step 2: game ----------
+function needAge(){
+  const s1 = $("s1"); s1.scrollIntoView({ behavior:"smooth", block:"center" });
+  s1.classList.remove("nudge"); void s1.offsetWidth; s1.classList.add("nudge");
+  toast("First, pick who's playing 👆");
+}
 document.querySelectorAll(".door").forEach(d => d.onclick = () => {
   blessVoice();
+  if (!S.age) return needAge();
   S.game = d.dataset.game;
   document.querySelectorAll(".door").forEach(x => x.classList.toggle("on", x === d));
   $("s3").classList.remove("dim");
@@ -393,6 +402,7 @@ function paintTopics(){
   $("chips").innerHTML = a.topics.map(t => `<button class="chip" data-t="${esc(t)}">${esc(t)}</button>`).join("") + `<button class="chip surprise" data-t="🎲 Surprise me">🎲 Surprise me</button>`;
   $("chips").querySelectorAll(".chip").forEach(c => c.onclick = () => {
     blessVoice();
+    if (!S.game) { const s2 = $("s2"); s2.scrollIntoView({ behavior:"smooth", block:"center" }); s2.classList.remove("nudge"); void s2.offsetWidth; s2.classList.add("nudge"); toast("Now pick a door: The Mystery or Fact or Fiction 👆"); return; }
     let t = c.dataset.t;
     if (/Surprise/.test(t)) t = a.topics[Math.floor(Math.random() * a.topics.length)];
     S.topic = t; startGame();
