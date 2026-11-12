@@ -39,9 +39,9 @@ h1,h2,h3,.fred{font-family:Fredoka,Nunito,sans-serif;font-weight:700;letter-spac
 .stage:before{left:0}.stage:after{right:0;transform:scaleX(-1)}
 .stage .valance{position:absolute;left:0;right:0;top:0;height:16px;background:repeating-linear-gradient(90deg,#8e1d36 0 22px,#6a1427 22px 44px);border-bottom:2px solid var(--gold);opacity:.95}
 .stage .hosts{display:flex;justify-content:center;align-items:flex-end;gap:clamp(14px,5vw,48px);margin:10px 40px 0}
-.stage .hp{width:clamp(110px,22vw,170px);text-align:center}
+.stage .hp{width:clamp(88px,19vw,160px);text-align:center}
 .stage .hp .pic{aspect-ratio:1;border-radius:50%;overflow:hidden;border:4px solid var(--gold);background:#3a0d18;box-shadow:0 10px 26px rgba(0,0,0,.45);animation:bob 3.4s ease-in-out infinite}
-.stage .hp:nth-child(2) .pic{animation-delay:.6s}
+.stage .hp:nth-child(2) .pic{animation-delay:.6s}.stage .hp:nth-child(3) .pic{animation-delay:1.2s}
 .stage .hp img{width:100%;height:100%;object-fit:cover;display:block;transition:opacity .3s}
 .stage .hp .nm{margin-top:7px;font:600 14px Fredoka;color:var(--gold2)}
 .stage .say{margin:12px auto 0;max-width:560px;color:var(--soft);font-size:15px}
@@ -241,8 +241,9 @@ h1,h2,h3,.fred{font-family:Fredoka,Nunito,sans-serif;font-weight:700;letter-spac
     <div class="stage" id="stage">
       <div class="valance"></div>
       <div class="hosts">
-        <div class="hp"><div class="pic"><img id="stKid" src="kid5.jpg" alt="Cartoon Mr. Paul"></div><div class="nm">Mr. Paul (ages 5–10)</div></div>
-        <div class="hp"><div class="pic"><img id="stHost" src="host5.jpg" alt="Mr. Paul"></div><div class="nm">Mr. Paul (11 and up)</div></div>
+        <div class="hp"><div class="pic"><img data-face="kid" src="kid5.jpg" alt="Cartoon Mr. Paul"></div><div class="nm">Ages 5–10</div></div>
+        <div class="hp"><div class="pic"><img data-face="teen" src="teen5.jpg" alt="Mr. Paul for teens"></div><div class="nm">Ages 11–17</div></div>
+        <div class="hp"><div class="pic"><img data-face="host" src="host5.jpg" alt="Mr. Paul"></div><div class="nm">Ages 18+</div></div>
       </div>
       <p class="say">Step right in! I've got a mystery for you to crack, and claims that might be true… or might be totally made up.</p>
       <div class="floor"></div>
@@ -312,7 +313,7 @@ const store = { get(k, d){ try { const v = localStorage.getItem(k); return v == 
 const AGES = {
   junior: { label:"Junior Guessers", range:"Ages 5–10", face:"kid", kid:true, host:"Mr. Paul", tag:"Your silly game-show host",
     topics:["🐾 Animals","🦖 Dinosaurs","🚀 Space","🍕 Food","🧸 Toys & Cartoons","⚽ Sports","🐠 Ocean","🌍 Around the World"] },
-  teen:   { label:"Challengers", range:"Ages 11–17", face:"host", kid:false, host:"Mr. Paul", tag:"Your game-show host",
+  teen:   { label:"Challengers", range:"Ages 11–17", face:"teen", kid:false, host:"Mr. Paul", tag:"Your game-show host",
     topics:["🔬 Science","🏛️ History","🗺️ Geography","🏀 Sports","🎬 Music & Movies","🎮 Video Games","💡 Inventions","🐾 Animals"] },
   adult:  { label:"The Guess Room", range:"Ages 18+", face:"host", kid:false, host:"Mr. Paul", tag:"Your host",
     topics:["🏛️ History","⚾ Sports","🎵 Music","📺 Movies & TV","🔬 Science","💼 Business & Money","✈️ Food & Travel","📻 Decades & Nostalgia"] }
@@ -320,7 +321,7 @@ const AGES = {
 const EXPR = { talk:1, think:2, wow:3, laugh:4, calm:5 };
 const faceSrc = (face, ex) => `${face}${EXPR[ex] || 5}.jpg`;
 // preload every face so expression swaps are instant
-["kid","host"].forEach(f => Object.keys(EXPR).forEach(ex => { const i = new Image(); i.src = faceSrc(f, ex); }));
+["kid","teen","host"].forEach(f => Object.keys(EXPR).forEach(ex => { const i = new Image(); i.src = faceSrc(f, ex); }));
 
 const S = { age:null, game:null, topic:null, busy:false, last:null, total:0, played:0,
   m:null,   // current mystery
@@ -359,15 +360,15 @@ function scrollParent(){ try { parent.postMessage({ guessRoomScroll:true }, "*")
   if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   setInterval(() => {
     if ($("setup").classList.contains("hide") || document.hidden) return;
-    const img = k++ % 2 ? $("stHost") : $("stKid"); const face = img.id === "stKid" ? "kid" : "host";
+    const imgs = document.querySelectorAll(".stage .hp img"); const img = imgs[k++ % imgs.length]; const face = img.dataset.face;
     const pick = moods[Math.floor(Math.random() * moods.length)];
     img.style.opacity = 0; setTimeout(() => { img.src = faceSrc(face, pick); img.style.opacity = 1; }, 300);
-  }, 2000);
+  }, 1600);
 })();
 
 // ---------- step 1: age ----------
 $("ages").innerHTML = Object.entries(AGES).map(([k, a]) =>
-  `<button class="age" data-age="${k}"><img src="${faceSrc(a.face, k === "junior" ? "laugh" : k === "teen" ? "talk" : "calm")}" alt=""><b>${a.label}</b><span>${a.range}</span></button>`).join("");
+  `<button class="age" data-age="${k}"><img src="${faceSrc(a.face, k === "junior" ? "laugh" : "calm")}" alt=""><b>${a.label}</b><span>${a.range}</span></button>`).join("");
 $("ages").querySelectorAll(".age").forEach(b => b.onclick = () => {
   blessVoice();
   S.age = b.dataset.age;
@@ -709,9 +710,11 @@ async function newFofRound(first){
   loadingBoard("✅ Fact or Fiction", "Mr. Paul is digging up some true facts… and some sneaky fakes…");
   $("caption").textContent = "Let me find some good ones…";
   try {
-    S.f.claims = await fetchClaims(5);
+    S.f.claims = await fetchClaims(3);
     if (!S.f.claims.length) throw new Error("No claims came back.");
-    S.f.more = fetchClaims(ROUND - 5).then(list => { S.f && S.f.claims.push(...list); }).catch(() => {});
+    // the rest load in the background while you play (4, then 3)
+    const F0 = S.f;
+    S.f.more = fetchClaims(4).then(list => { if (S.f === F0) F0.claims.push(...list); return fetchClaims(3); }).then(list => { if (S.f === F0) F0.claims.push(...list); }).catch(() => {});
     const F = S.f;
     if (first) { paintClaim(); await say(ageInfo().kid ? "Let's play Fact or Fiction! I say something, and you decide: is it TRUE, or is it MADE UP? Here we go!" : "Welcome to Fact or Fiction. I read a claim, you decide if it's true or made up. Ten claims. Let's go.", { mood:"laugh", end:"calm" }); }
     if (S.f !== F || F.picked != null) return; // they already answered during the welcome
