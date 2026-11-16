@@ -15,7 +15,7 @@ const hits = new Map();
 const AGE = {
   junior: { who: "children ages 5 to 10", style: "Use very simple words and short sentences. Be silly, warm and encouraging. Only things a young child would know or love: everyday animals, foods, toys, famous cartoon-style things, simple space and nature facts. No scary or sad topics." },
   teen: { who: "kids and teens ages 11 to 17", style: "Middle and high school level. Fun, upbeat, a little playful. Things a teen would know from school, sports, music, movies, games and the internet." },
-  adult: { who: "adults (18+)", style: "Smart, witty, a bit of a classy game-show host. Deeper and more surprising knowledge, with some nostalgia from the 1950s to today." }
+  adult: { who: "adults (18+)", style: "Smart, witty, a bit of a classy game-show host. Deeper and more surprising knowledge, with some nostalgia from the 1930s to today." }
 };
 const SAFE = "Everything must be family-friendly and true to the facts. Never about current politics, elections, religion debates, tragedies, violence, crime, drugs, or anything mean about groups of people. No private people.";
 
