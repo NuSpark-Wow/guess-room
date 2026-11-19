@@ -14,6 +14,7 @@ const num = (v, d) => { const n = parseFloat(v); return isFinite(n) && n >= 0 &&
 const cache = new Map();
 
 module.exports = async (req, res) => {
+  if (!(await require("./_lwgate")(req, res, "guess-room"))) return;
   if (!allowedRequest(req)) return blockRequest(res);
   const isGet = req.method === "GET";
   if (!isGet && req.method !== "POST") return res.status(405).json({ error: "GET or POST only" });
