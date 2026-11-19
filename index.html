@@ -298,6 +298,7 @@ h1,h2,h3,.fred{font-family:Fredoka,Nunito,sans-serif;font-weight:700;letter-spac
             <button class="pill" id="pauseBtn" disabled>⏸ Pause</button>
             <button class="pill" id="contBtn" disabled>▶ Continue</button>
             <button class="pill" id="replayBtn" disabled>↻ Replay</button>
+            <button class="pill" id="muteBtn" type="button" aria-pressed="false">🔇 Mute</button>
           </div>
           <div class="speed"><span>🐢</span><input type="range" id="rate" min="0.75" max="1.35" step="0.05" value="1"><span>🐇</span><b id="rateVal">1×</b></div>
           <div class="scorebar" id="scorebar"></div>
@@ -321,6 +322,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const store = { get(k, d){ try { const v = localStorage.getItem(k); return v == null ? d : v; } catch(e){ return d; } }, set(k, v){ try { localStorage.setItem(k, v); } catch(e){} } };
+let muted = store.get("gr_mute", "0") === "1";   // Mute: words only, no voice (and no voice cost)
 
 // ---------- age groups and their topics ----------
 const AGES = {
@@ -532,6 +534,9 @@ function paintCtrls(){
 $("pauseBtn").onclick = () => { if (!speaking) return; paused = true; if (useTTS) { try { speechSynthesis.pause(); } catch(e){} } else voiceEl.pause(); paintCtrls(); };
 $("contBtn").onclick = () => { if (!speaking) return; paused = false; if (useTTS) { try { speechSynthesis.resume(); } catch(e){} } else voiceEl.play().catch(() => {}); paintCtrls(); };
 $("replayBtn").onclick = () => { if (S.last) say(S.last.text, { mood:S.last.mood, cached:S.last.data }); };
+function paintMute(){ $("muteBtn").textContent = muted ? "🔊 Sound on" : "🔇 Mute"; $("muteBtn").setAttribute("aria-pressed", muted ? "true" : "false"); }
+$("muteBtn").onclick = () => { muted = !muted; store.set("gr_mute", muted ? "1" : "0"); if (muted) stopVoice(); paintMute(); };
+paintMute();
 
 function wordsFromAlignment(al, text){
   if (!al || !al.characters) return text.split(/\s+/).filter(Boolean).map(w => ({ w, t:null }));
@@ -555,6 +560,18 @@ function say(text, opt){
     stopVoice();
     const mood = opt.mood || "calm";
     if (mood !== "calm") setExpr(mood);
+    if (muted) {
+      // Muted: show the words and give time to read them, with no voice.
+      paintCaption(text.split(/\s+/).filter(Boolean).map(w => ({ w, t:null })));
+      lightWord(words.length); S.last = { text, mood, data: opt.cached || null }; paintCtrls();
+      const wait = Math.min(6000, Math.max(1200, text.split(/\s+/).length * 230 / rate));
+      setTimeout(() => {
+        if (my !== sayToken) return resolve(null);
+        const endFace = opt.end || (mood === "laugh" || mood === "wow" || mood === "think" ? mood : "calm");
+        setExpr(endFace); paintCtrls(); resolve(opt.cached || null);
+      }, wait);
+      return;
+    }
     const data = opt.cached || await getVoice(text);
     if (my !== sayToken) return resolve(data);
     S.last = { text, mood, data };
@@ -702,7 +719,7 @@ function paintMystery(){
         ${m.done ? "" : `
         <div class="askrow">
           <button class="mic" id="micBtn" title="Talk">🎤</button>
-          <input id="askIn" maxlength="160" placeholder="${ageInfo().kid ? "Ask a yes or no question, or guess!" : "Ask a yes-or-no question, or make a guess…"}" autocomplete="off">
+          <input id="askIn" maxlength="160" autocomplete="off">
           <button class="go" id="askBtn">Ask ▶</button>
         </div>
         <div class="hint">Try: “Is it an animal?” or “Is it a giraffe?”</div>
@@ -917,6 +934,37 @@ async function finishRound(){
     clearTimeout(waiting);
     waiting = setTimeout(function(){ if (!seen) { try { window.parent.postMessage({ guessRoomScroll:true }, "*"); } catch(e){} } }, 450);
   }).observe(root);
+})();
+</script>
+
+<script>
+/* House rule: no sample text inside input boxes (it gets cut off on phones).
+   Plain prompts are removed; helpful examples move to a small line just above the box. */
+(function(){
+  var DROP=/^(ask anything|pregunta lo que quieras|type your reply|your answer|tu respuesta|your word|first thing|second thing|third thing|type what.?s on your mind|ask the table a question|paste a web address)/i;
+  var css=document.createElement('style');
+  css.textContent='.ph-hint{font-size:13px;line-height:1.35;opacity:.78;margin:4px 0 6px;text-align:left}';
+  document.head.appendChild(css);
+  function fix(el){
+    var t=(el.getAttribute('placeholder')||'').trim();
+    if(!t) return;
+    el.setAttribute('placeholder','');
+    if(DROP.test(t)){ if(el._phHint){ el._phHint.remove(); el._phHint=null; } return; }
+    var h=el._phHint;
+    if(!h || !h.isConnected){
+      h=document.createElement('div'); h.className='ph-hint';
+      var at=el, p=el.parentNode;
+      if(p && p.children.length>1){ var d=getComputedStyle(p).display; if(/flex|grid/.test(d)) at=p; }
+      at.parentNode.insertBefore(h,at); el._phHint=h;
+    }
+    h.textContent=t;
+  }
+  function scan(root){ if(root.querySelectorAll) root.querySelectorAll('input[placeholder],textarea[placeholder]').forEach(fix); }
+  new MutationObserver(function(ms){ ms.forEach(function(m){
+    if(m.type==='attributes') fix(m.target);
+    else m.addedNodes.forEach(function(n){ if(n.nodeType===1){ if(n.matches && n.matches('input[placeholder],textarea[placeholder]')) fix(n); scan(n); } });
+  }); }).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['placeholder']});
+  scan(document);
 })();
 </script>
 </body>
