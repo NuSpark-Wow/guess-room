@@ -390,6 +390,7 @@ h1,h2,h3,.fred{font-family:Fredoka,Nunito,sans-serif;font-weight:700;letter-spac
         </div>
       </div>
       <div class="board" id="board"></div>
+      <div class="board hide" id="stumpBox" style="margin-top:12px"></div>
     </div>
   </section>
 </div>
@@ -733,6 +734,7 @@ function attachMic(btn, input, onDone){
 
 // ---------- score bar ----------
 function paintScore(){
+  try { paintStump(); } catch(e) {}
   if (S.game === "mystery") {
     $("scorebar").innerHTML = `<div class="score"><b>${S.total}</b>Total points</div><div class="score"><b>${S.played}</b>Mysteries solved</div>`;
   } else {
@@ -980,6 +982,41 @@ async function answerClaim(pick){
   paintScore(); paintClaim();
   const lead = right ? (f.streak >= 3 ? `You're on fire! That's ${f.streak} in a row! ` : (ageInfo().kid ? "Yes! You got it! " : "Correct! ")) : (ageInfo().kid ? "Ooh, not this time! " : "Not quite! ");
   await say(lead + (c.say || `It's ${c.fact ? "a fact" : "fiction"}. ${c.explain || ""}`), { mood: right ? "laugh" : "wow" });
+}
+// ---------- Stump Mr. Paul: you write the claim, he thinks out loud and guesses ----------
+function paintStump(){
+  const b = $("stumpBox"); if (!b) return;
+  b.classList.toggle("hide", S.game !== "fof");
+  if (S.game !== "fof" || b.dataset.ready) return;
+  b.dataset.ready = "1";
+  b.innerHTML = `<div class="bhead"><h2>🧠 Stump Mr. Paul</h2></div>
+    <p style="margin:4px 0 6px">Write a claim, true or made up. Mr. Paul will think it through out loud and guess. Then the research decides!</p>
+    <p style="margin:0 0 6px;font-size:13px;opacity:.8">For example: Octopuses have three hearts.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="stumpIn" maxlength="200" autocomplete="off" aria-label="Your claim" style="flex:1;min-width:200px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);font-size:16px"><button class="go" id="stumpGo" type="button">Try to stump him ▶</button></div>
+    <div id="stumpOut" style="margin-top:10px"></div>`;
+  const go = async () => {
+    const claim = $("stumpIn").value.trim(); if (!claim) { $("stumpIn").focus(); return; }
+    blessVoice(); $("stumpGo").disabled = true;
+    $("stumpOut").innerHTML = `<p>🤔 Mr. Paul is thinking…</p>`;
+    try {
+      const r = await post("/api/guess", { part:"stump", age:S.age, claim });
+      if (!r.ok) { $("stumpOut").innerHTML = `<p>${esc(r.decline || "Let's try a different claim.")}</p>`; return; }
+      const lines = r.thinking.map(t => `<li>${esc(t)}</li>`).join("");
+      const real = r.verdict === "unclear" ? null : r.verdict === "fact";
+      const result = real == null ? "The research couldn't settle that one, so it's a draw!" : (real === r.guess ? (ageInfo().kid ? "Mr. Paul got it! Try a trickier one!" : "Mr. Paul got it right. Try a trickier one!") : "🎉 You stumped Mr. Paul!");
+      $("stumpOut").innerHTML = `<div class="verdict ${real != null && real !== r.guess ? "right" : "wrong"}"><h3>Mr. Paul thinks out loud:</h3><ul style="margin:4px 0 8px;padding-left:20px">${lines}</ul>
+        <p><b>His guess: ${r.guess ? "FACT" : "FICTION"}</b></p>
+        <p><b>The real answer: ${real == null ? "Not sure" : real ? "FACT" : "FICTION"}.</b> ${esc(r.explain || "")}</p>
+        ${r.source ? `<div class="src">Source: ${r.source_url ? `<a href="${esc(r.source_url)}" target="_blank" rel="noopener">${esc(r.source)}</a>` : esc(r.source)}</div>` : ""}
+        <h3 style="margin-top:8px">${result}</h3></div>`;
+      if (real != null && real !== r.guess) { try { confetti(); } catch(e) {} }
+      try { say(r.thinking.join(" ") + " My guess: " + (r.guess ? "fact." : "fiction.")); } catch(e) {}
+      $("stumpIn").value = "";
+    } catch(e) { $("stumpOut").innerHTML = `<p>${esc(e.message || "Mr. Paul lost his place. Please try again.")}</p>`; }
+    finally { $("stumpGo").disabled = false; }
+  };
+  $("stumpGo").onclick = go;
+  $("stumpIn").addEventListener("keydown", e => { if (e.key === "Enter") go(); });
 }
 function nextClaim(){
   const f = S.f; if (!f) return;
