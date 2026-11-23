@@ -348,6 +348,35 @@ Explanations and proof must use only facts from the research. Pick a trustworthy
   return { claims: out, researched: haveWeb };
 }
 
+// ---------- Stump Mr. Paul: the player writes a claim, Mr. Paul thinks out loud, guesses, then the research decides ----------
+const STUMP_TOOL = {
+  name: "stump_answer", description: "Mr. Paul's reasoning, his guess, and the research-based verdict.",
+  input_schema: { type: "object", properties: {
+    ok: { type: "boolean", description: "false if the claim is not a checkable, family-friendly fact-or-fiction statement" },
+    decline: { type: "string", description: "if ok is false, one friendly sentence asking for a different claim" },
+    thinking: { type: "array", items: { type: "string" }, description: "2-3 short lines of Mr. Paul reasoning out loud BEFORE looking anything up, like a game-show contestant (each under 22 words)" },
+    guess: { type: "boolean", description: "Mr. Paul's guess from his reasoning alone: true = FACT, false = FICTION" },
+    verdict: { type: "string", enum: ["fact", "fiction", "unclear"], description: "what the RESEARCH says" },
+    explain: { type: "string", description: "1-2 sentences on the real answer, using only facts from the research" },
+    source: { type: "string" }, source_url: { type: "string" }
+  }, required: ["ok"] }
+};
+async function stump(body) {
+  const age = ageOf(body.age), A = AGE[age];
+  const claim = clip(body.claim, 220).trim();
+  if (claim.length < 8) return { ok: false, decline: "Give me a full claim to judge, like: Octopuses have three hearts." };
+  const web = await serper(claim);
+  const notes = snippetsFrom(web, 6).map(x => `- ${x.title} (${x.link}): ${x.snippet}`).join("\n") || "(no research found)";
+  const j = await tryTwice(m => callTool(
+    `You are Mr. Paul, the host of "The Guess Room", a game for ${A.who}. ${A.style} ${SAFE}
+A player is trying to stump you with a claim. First reason out loud from what you already know (thinking), then make your guess. Then judge the claim from the RESEARCH only: if the research does not clearly settle it, verdict is "unclear". Pick a trustworthy source (encyclopedia, museum, university, government agency, major publication), never a shop. If the claim is an opinion, a ranking, about a private person, or not family-friendly, set ok=false.`,
+    STUMP_TOOL, `CLAIM: ${claim}\n\nRESEARCH:\n${notes}`, 1200, x => typeof x.ok === "boolean", m), FAST, MODEL);
+  if (!j.ok) return { ok: false, decline: clip(j.decline, 200) || "Let's try a different claim, something with a fact we can check." };
+  return { ok: true, claim, thinking: (Array.isArray(j.thinking) ? j.thinking : []).map(x => clip(x, 160)).slice(0, 3), guess: !!j.guess,
+    verdict: ["fact", "fiction", "unclear"].includes(j.verdict) ? j.verdict : "unclear", explain: clip(j.explain, 400),
+    source: clip(j.source, 80), source_url: web ? clip(j.source_url, 300) : "" };
+}
+
 // ---------- handler ----------
 module.exports = async (req, res) => {
   if (!(await require("./_lwgate")(req, res, "guess-room"))) return;
@@ -368,6 +397,7 @@ module.exports = async (req, res) => {
     if (body.part === "mystery") return res.json(await mystery(body));
     if (body.part === "ask") return res.json(await ask(body));
     if (body.part === "facts") return res.json(await facts(body));
+    if (body.part === "stump") return res.json(await stump(body));
     return res.status(400).json({ error: "unknown_part" });
   } catch (e) {
     console.error(e);
